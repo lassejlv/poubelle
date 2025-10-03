@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 pub const PAGE_SIZE: usize = 4096;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Page {
     pub rows: Vec<Row>,
 }

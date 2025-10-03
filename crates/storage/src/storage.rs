@@ -1,9 +1,10 @@
 use crate::page::{Page, PAGE_SIZE};
 use crate::types::{ColumnType, Row};
+use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -34,6 +35,7 @@ struct Catalog {
 pub struct Storage {
     path: PathBuf,
     catalog: Catalog,
+    page_cache: DashMap<(String, usize), Page>,
 }
 
 impl Storage {
@@ -41,10 +43,9 @@ impl Storage {
         let catalog_path = path.join("catalog.bin");
 
         let catalog = if catalog_path.exists() {
-            let mut file = File::open(&catalog_path)?;
-            let mut bytes = Vec::new();
-            file.read_to_end(&mut bytes)?;
-            bincode::deserialize(&bytes)?
+            let file = File::open(&catalog_path)?;
+            let reader = BufReader::new(file);
+            bincode::deserialize_from(reader)?
         } else {
             std::fs::create_dir_all(&path)?;
             Catalog {
@@ -52,18 +53,22 @@ impl Storage {
             }
         };
 
-        Ok(Self { path, catalog })
+        Ok(Self {
+            path,
+            catalog,
+            page_cache: DashMap::new(),
+        })
     }
 
     fn save_catalog(&self) -> Result<(), StorageError> {
         let catalog_path = self.path.join("catalog.bin");
-        let bytes = bincode::serialize(&self.catalog)?;
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .open(catalog_path)?;
-        file.write_all(&bytes)?;
+        let writer = BufWriter::new(file);
+        bincode::serialize_into(writer, &self.catalog)?;
         Ok(())
     }
 
@@ -105,7 +110,7 @@ impl Storage {
 
         let table_path = self.path.join(format!("{}.bin", table));
         let mut page = self
-            .load_page(&table_path, page_id)
+            .load_page(&table_path, page_id, table)
             .unwrap_or_else(|_| Page::new());
 
         page.add_row(row);
@@ -113,7 +118,7 @@ impl Storage {
         let page_bytes = page.to_bytes()?;
         let needs_new_page = page_bytes.len() > PAGE_SIZE;
 
-        self.save_page(&table_path, page_id, &page)?;
+        self.save_page(&table_path, page_id, &page, table)?;
 
         if needs_new_page {
             let meta = self.catalog.tables.get_mut(table).unwrap();
@@ -131,11 +136,11 @@ impl Storage {
             .get(table)
             .ok_or_else(|| StorageError::TableNotFound(table.to_string()))?;
 
-        let mut rows = Vec::new();
+        let mut rows = Vec::with_capacity(meta.page_count * 10);
         let table_path = self.path.join(format!("{}.bin", table));
 
         for page_id in 0..meta.page_count {
-            if let Ok(page) = self.load_page(&table_path, page_id) {
+            if let Ok(page) = self.load_page(&table_path, page_id, table) {
                 rows.extend(page.rows);
             }
         }
@@ -151,20 +156,35 @@ impl Storage {
         self.catalog.tables.get(table)
     }
 
-    fn load_page(&self, table_path: &PathBuf, page_id: usize) -> Result<Page, StorageError> {
-        let mut file = File::open(table_path)?;
+    fn load_page(
+        &self,
+        table_path: &PathBuf,
+        page_id: usize,
+        table: &str,
+    ) -> Result<Page, StorageError> {
+        let cache_key = (table.to_string(), page_id);
+
+        if let Some(cached) = self.page_cache.get(&cache_key) {
+            return Ok(cached.clone());
+        }
+
+        let file = File::open(table_path)?;
+        let mut reader = BufReader::new(file);
         let offset = page_id * PAGE_SIZE;
-        file.seek(SeekFrom::Start(offset as u64))?;
+        reader.seek(SeekFrom::Start(offset as u64))?;
 
         let mut buffer = vec![0u8; PAGE_SIZE];
-        let bytes_read = file.read(&mut buffer)?;
+        let bytes_read = reader.read(&mut buffer)?;
         buffer.truncate(bytes_read);
 
         if buffer.is_empty() {
             return Ok(Page::new());
         }
 
-        Ok(Page::from_bytes(&buffer)?)
+        let page = Page::from_bytes(&buffer)?;
+        self.page_cache.insert(cache_key, page.clone());
+
+        Ok(page)
     }
 
     fn save_page(
@@ -172,19 +192,25 @@ impl Storage {
         table_path: &PathBuf,
         page_id: usize,
         page: &Page,
+        table: &str,
     ) -> Result<(), StorageError> {
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .write(true)
             .create(true)
             .read(true)
             .open(table_path)?;
+        let mut writer = BufWriter::new(file);
 
         let offset = page_id * PAGE_SIZE;
-        file.seek(SeekFrom::Start(offset as u64))?;
+        writer.seek(SeekFrom::Start(offset as u64))?;
 
         let mut bytes = page.to_bytes()?;
         bytes.resize(PAGE_SIZE, 0);
-        file.write_all(&bytes)?;
+        writer.write_all(&bytes)?;
+        writer.flush()?;
+
+        let cache_key = (table.to_string(), page_id);
+        self.page_cache.insert(cache_key, page.clone());
 
         Ok(())
     }

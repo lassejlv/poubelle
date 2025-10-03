@@ -11,20 +11,42 @@ A lightweight SQL database with minimal syntax, written in Rust.
 
 ## Build
 
+### Cargo
+
 ```bash
 cargo build --release
 ```
 
+### Docker
+
+```bash
+docker build -t poubelle .
+```
+
 ## Run
+
+### Local
 
 ```bash
 cargo run --bin poubelle
 ```
 
+### Docker
+
+```bash
+docker run -p 5432:5432 -p 3000:3000 -v poubelle-data:/data poubelle
+```
+
+### Docker Compose
+
+```bash
+docker-compose up
+```
+
 Starts both servers:
 
-- TCP server: `127.0.0.1:5432`
-- HTTP API: `127.0.0.1:3000`
+- TCP server: `5432`
+- HTTP API: `3000`
 
 Default credentials: `admin` / `admin`
 

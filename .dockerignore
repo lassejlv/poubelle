@@ -1,0 +1,7 @@
+target/
+data/
+.git/
+.gitignore
+.env
+*.md
+sdk-typescript/
