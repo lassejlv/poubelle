@@ -1,0 +1,21 @@
+{
+  "name": "poubelle-sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for Poubelle DB",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "example": "bun run examples/example.ts"
+  },
+  "keywords": [
+    "database",
+    "sql",
+    "poubelle"
+  ],
+  "author": "",
+  "license": "MIT",
+  "peerDependencies": {
+    "bun-types": "latest"
+  }
+}

@@ -1,0 +1,11 @@
+[package]
+name = "db-engine"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+storage-engine = { path = "../storage-engine" }
+parser = { path = "../parser" }
+anyhow.workspace = true
+thiserror.workspace = true
+

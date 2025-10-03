@@ -1,0 +1,18 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+
+[[bin]]
+name = "poubelle"
+path = "src/main.rs"
+
+[dependencies]
+db-engine = { path = "../db-engine" }
+parser = { path = "../parser" }
+storage-engine = { path = "../storage-engine" }
+tokio.workspace = true
+anyhow.workspace = true
+sha2 = "0.10"
+dotenvy = "0.15"
+
