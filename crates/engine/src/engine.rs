@@ -1,6 +1,6 @@
 use crate::executor::{Executor, ExecutorError, QueryResult};
 use parser::{ParseError, Parser};
-use storage_engine::Storage;
+use storage::Storage;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

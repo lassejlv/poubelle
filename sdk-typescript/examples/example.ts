@@ -1,10 +1,6 @@
 import PoubelleClient from '../src/index'
-const client = new PoubelleClient({
-  host: '127.0.0.1',
-  port: 5432,
-  username: 'admin',
-  password: 'admin',
-})
+
+const client = new PoubelleClient('poubelle://admin:admin@127.0.0.1:5432')
 
 await client.connect()
 

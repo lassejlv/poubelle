@@ -4,10 +4,10 @@ A lightweight SQL database with minimal syntax, written in Rust.
 
 ## Architecture
 
-- **storage-engine**: Binary storage format with page-based architecture
+- **storage**: Binary storage format with page-based architecture
 - **parser**: Minimal SQL syntax parser
-- **db-engine**: Query execution engine
-- **server**: TCP server with username/password authentication
+- **engine**: Query execution engine
+- **server**: Combined TCP + HTTP server with username/password authentication
 
 ## Build
 
@@ -21,7 +21,10 @@ cargo build --release
 cargo run --bin poubelle
 ```
 
-Server listens on `127.0.0.1:5432`
+Starts both servers:
+
+- TCP server: `127.0.0.1:5432`
+- HTTP API: `127.0.0.1:3000`
 
 Default credentials: `admin` / `admin`
 
@@ -35,6 +38,9 @@ POUBELLE_HOST=127.0.0.1          # Server host
 POUBELLE_PORT=5432               # Server port
 POUBELLE_USERNAME=admin          # Authentication username
 POUBELLE_PASSWORD=admin          # Authentication password
+
+POUBELLE_HTTP_HOST=127.0.0.1    # HTTP gateway host
+POUBELLE_HTTP_PORT=3000          # HTTP gateway port
 ```
 
 Example:
@@ -68,6 +74,30 @@ SELECT id, name FROM users
 
 ## Connect
 
+### Connection String Format
+
+```
+poubelle://username:password@host:port
+```
+
+### TCP (telnet/netcat)
+
 ```bash
 telnet localhost 5432
+```
+
+### HTTP (curl)
+
+```bash
+curl -X POST http://localhost:3000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "SELECT * FROM users"}'
+```
+
+### TypeScript SDK
+
+```typescript
+import PoubelleClient from 'poubelle-sdk'
+const client = new PoubelleClient('poubelle://admin:admin@localhost:5432')
+await client.connect()
 ```

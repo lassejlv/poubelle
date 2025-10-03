@@ -1,24 +1,42 @@
 import { connect, Socket } from 'bun'
 
-export interface PoubelleConfig {
+export interface Row {
+  [key: string]: number | string | null
+}
+
+interface ParsedConnection {
   host: string
   port: number
   username: string
   password: string
 }
 
-export interface Row {
-  [key: string]: number | string | null
-}
-
 export class PoubelleClient {
   private socket: Socket | null = null
-  private config: PoubelleConfig
+  private config: ParsedConnection
   private connected = false
   private buffer = ''
 
-  constructor(config: PoubelleConfig) {
-    this.config = config
+  constructor(connectionString: string) {
+    this.config = this.parseConnectionString(connectionString)
+  }
+
+  private parseConnectionString(connStr: string): ParsedConnection {
+    const urlPattern = /^poubelle:\/\/([^:]+):([^@]+)@([^:]+):(\d+)$/
+    const match = connStr.match(urlPattern)
+
+    if (!match) {
+      throw new Error('Invalid connection string format. Expected: poubelle://username:password@host:port')
+    }
+
+    const [, username, password, host, port] = match
+
+    return {
+      username,
+      password,
+      host,
+      port: parseInt(port, 10),
+    }
   }
 
   async connect(): Promise<void> {

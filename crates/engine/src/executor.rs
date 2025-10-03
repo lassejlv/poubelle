@@ -1,6 +1,6 @@
 use parser::{Expr, Statement};
 use std::collections::HashMap;
-use storage_engine::{ColumnType, Row, Storage, StorageError, Value};
+use storage::{ColumnType, Row, Storage, StorageError, Value};
 use thiserror::Error;
 
 #[derive(Error, Debug)]

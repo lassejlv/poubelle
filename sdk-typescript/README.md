@@ -14,12 +14,7 @@ bun install
 ```typescript
 import PoubelleClient from 'poubelle-sdk'
 
-const client = new PoubelleClient({
-  host: '127.0.0.1',
-  port: 5432,
-  username: 'admin',
-  password: 'admin',
-})
+const client = new PoubelleClient('poubelle://admin:admin@127.0.0.1:5432')
 
 await client.connect()
 
@@ -38,16 +33,21 @@ await client.close()
 
 ## API
 
-### `new PoubelleClient(config)`
+### `new PoubelleClient(connectionString)`
 
 Create a new client instance.
 
-**Config:**
+**Connection String Format:**
 
-- `host`: Database host (default: "127.0.0.1")
-- `port`: Database port (default: 5432)
-- `username`: Username for authentication
-- `password`: Password for authentication
+```
+poubelle://username:password@host:port
+```
+
+**Example:**
+
+```typescript
+const client = new PoubelleClient('poubelle://admin:admin@localhost:5432')
+```
 
 ### `connect()`
 

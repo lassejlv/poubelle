@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "crates/storage-engine",
-    "crates/db-engine",
+    "crates/storage",
+    "crates/engine",
     "crates/parser",
     "crates/server",
 ]

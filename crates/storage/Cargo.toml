@@ -1,11 +1,11 @@
 [package]
-name = "db-engine"
+name = "storage"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-storage-engine = { path = "../storage-engine" }
-parser = { path = "../parser" }
+serde.workspace = true
+bincode.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
 
