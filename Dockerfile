@@ -2,7 +2,7 @@ FROM rust:1.88.0 AS builder
 
 WORKDIR /app
 
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml ./
 COPY crates ./crates
 
 RUN cargo build --release --bin poubelle
@@ -16,8 +16,6 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 COPY --from=builder /app/target/release/poubelle /usr/local/bin/poubelle
-
-RUN mkdir -p /data
 
 ARG POUBELLE_DATA_DIR
 ARG POUBELLE_HOST
