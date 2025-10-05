@@ -8,6 +8,7 @@ A lightweight SQL database with minimal syntax, written in Rust.
 - **parser**: Minimal SQL syntax parser
 - **engine**: Query execution engine
 - **server**: Combined TCP + HTTP server with username/password authentication
+- **sdk**: Rust client library
 
 ## Build
 
@@ -22,6 +23,22 @@ cargo build --release
 ```bash
 docker build -t poubelle .
 ```
+
+## Benchmark
+
+Run the TCP benchmark (requires server running):
+
+```bash
+./bench.sh
+```
+
+The script will:
+
+- Connect via TCP
+- Run 100 INSERT operations
+- Run 10 SELECT queries
+- Run 10 CREATE TABLE operations
+- Display timing results
 
 ## Run
 
