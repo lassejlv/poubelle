@@ -3,6 +3,12 @@ pub enum Statement {
     Select(SelectQuery),
     Insert(InsertStatement),
     Create(CreateTable),
+    Drop(DropTable),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct DropTable {
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,6 +1,6 @@
 use crate::ast::{
-    Column, CompareOp, CreateTable, Expr, InsertStatement, OutputFormat, SelectQuery, Statement,
-    WhereClause,
+    Column, CompareOp, CreateTable, DropTable, Expr, InsertStatement, OutputFormat, SelectQuery,
+    Statement, WhereClause,
 };
 use crate::lexer::{Lexer, Token};
 use thiserror::Error;
@@ -30,6 +30,7 @@ impl Parser {
             Token::Select => self.parse_select(),
             Token::Insert => self.parse_insert(),
             Token::Create => self.parse_create(),
+            Token::Drop => self.parse_drop(),
             tok => Err(ParseError::UnexpectedToken(tok.clone())),
         }
     }
@@ -284,5 +285,18 @@ impl Parser {
             operator,
             value,
         })
+    }
+
+    fn parse_drop(&mut self) -> Result<Statement, ParseError> {
+        self.advance();
+        self.expect(Token::Table)?;
+
+        let name = match &self.current {
+            Token::Ident(s) => s.clone(),
+            _ => return Err(ParseError::ExpectedToken("table name".to_string())),
+        };
+        self.advance();
+
+        Ok(Statement::Drop(DropTable { name }))
     }
 }

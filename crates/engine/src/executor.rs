@@ -31,6 +31,10 @@ impl<'a> Executor<'a> {
 
     pub fn execute(&mut self, stmt: Statement) -> Result<QueryResult, ExecutorError> {
         match stmt {
+            Statement::Drop(drop) => {
+                self.storage.drop_table(&drop.name)?;
+                Ok(QueryResult::Success(format!("Table {} dropped", drop.name)))
+            }
             Statement::Select(select) => {
                 let mut rows = self.storage.scan_table(&select.table)?;
 

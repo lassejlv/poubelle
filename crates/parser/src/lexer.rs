@@ -6,6 +6,7 @@ pub enum Token {
     Into,
     Values,
     Create,
+    Drop,
     Table,
     Int,
     Text,
@@ -140,6 +141,7 @@ impl Lexer {
             "LIMIT" => Token::Limit,
             "FORMAT" => Token::Format,
             "JSON" => Token::Json,
+            "DROP" => Token::Drop,
             _ => Token::Ident(ident),
         }
     }

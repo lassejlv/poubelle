@@ -92,6 +92,24 @@ impl Storage {
         Ok(())
     }
 
+    pub fn drop_table(&mut self, name: &str) -> Result<(), StorageError> {
+        if !self.catalog.tables.contains_key(name) {
+            return Err(StorageError::TableNotFound(name.to_string()));
+        }
+
+        self.catalog.tables.remove(name);
+        self.save_catalog()?;
+
+        let table_path = self.path.join(format!("{}.bin", name));
+        if table_path.exists() {
+            std::fs::remove_file(table_path)?;
+        }
+
+        self.page_cache.retain(|key, _| key.0 != name);
+
+        Ok(())
+    }
+
     pub fn insert_row(&mut self, table: &str, row: Row) -> Result<(), StorageError> {
         let page_id = {
             let meta = self
