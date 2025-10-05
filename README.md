@@ -122,6 +122,40 @@ SELECT id, name FROM users
 poubelle://username:password@host:port
 ```
 
+### CLI (Interactive Shell)
+
+The CLI provides a psql-like interactive shell with command history, table formatting, and meta-commands:
+
+```bash
+# Build the CLI
+cargo build --release --bin poubelle-cli
+
+# Run interactively
+./target/release/poubelle-cli
+
+# Connect with custom connection string
+./target/release/poubelle-cli -c "poubelle://admin:admin@localhost:5432"
+
+# Execute a single command and exit
+./target/release/poubelle-cli -e "SELECT * FROM users;"
+```
+
+**Meta-commands:**
+
+- `\q`, `\quit` - Exit the CLI
+- `\?`, `\h`, `\help` - Show help
+- `\l`, `\list`, `\dt` - List all tables
+- `\c` - Show connection info
+- `Ctrl+C` - Cancel current input
+- `Ctrl+D` - Exit
+
+**Features:**
+
+- Command history (saved to `~/.poubelle_history`)
+- Multi-line SQL support (end with semicolon)
+- Pretty table formatting
+- Query timing
+
 ### TCP (telnet/netcat)
 
 ```bash

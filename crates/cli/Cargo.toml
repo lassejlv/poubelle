@@ -1,0 +1,18 @@
+[package]
+name = "poubelle-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "pbsql"
+path = "src/main.rs"
+
+[dependencies]
+poubelle-sdk = { path = "../sdk" }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+rustyline = "14.0"
+prettytable-rs = "0.10"
+clap = { version = "4.5", features = ["derive"] }
+dirs = "5.0"
