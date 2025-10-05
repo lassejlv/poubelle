@@ -9,6 +9,32 @@ pub enum Statement {
 pub struct SelectQuery {
     pub columns: Vec<String>,
     pub table: String,
+    pub where_clause: Option<WhereClause>,
+    pub limit: Option<usize>,
+    pub format: OutputFormat,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OutputFormat {
+    Debug,
+    Json,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct WhereClause {
+    pub column: String,
+    pub operator: CompareOp,
+    pub value: Expr,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CompareOp {
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
 }
 
 #[derive(Debug, Clone, PartialEq)]

@@ -10,6 +10,10 @@ pub enum Token {
     Int,
     Text,
     Null,
+    Where,
+    Limit,
+    Format,
+    Json,
     Ident(String),
     Number(i64),
     String(String),
@@ -17,6 +21,12 @@ pub enum Token {
     Comma,
     LeftParen,
     RightParen,
+    Equal,
+    NotEqual,
+    LessThan,
+    LessThanOrEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
     Eof,
 }
 
@@ -59,6 +69,37 @@ impl Lexer {
                 self.pos += 1;
                 Token::RightParen
             }
+            '=' => {
+                self.pos += 1;
+                Token::Equal
+            }
+            '!' => {
+                self.pos += 1;
+                if self.pos < self.input.len() && self.input[self.pos] == '=' {
+                    self.pos += 1;
+                    Token::NotEqual
+                } else {
+                    self.next_token()
+                }
+            }
+            '<' => {
+                self.pos += 1;
+                if self.pos < self.input.len() && self.input[self.pos] == '=' {
+                    self.pos += 1;
+                    Token::LessThanOrEqual
+                } else {
+                    Token::LessThan
+                }
+            }
+            '>' => {
+                self.pos += 1;
+                if self.pos < self.input.len() && self.input[self.pos] == '=' {
+                    self.pos += 1;
+                    Token::GreaterThanOrEqual
+                } else {
+                    Token::GreaterThan
+                }
+            }
             '\'' => self.read_string(),
             '0'..='9' | '-' => self.read_number(),
             _ if ch.is_alphabetic() => self.read_identifier(),
@@ -95,6 +136,10 @@ impl Lexer {
             "INT" => Token::Int,
             "TEXT" => Token::Text,
             "NULL" => Token::Null,
+            "WHERE" => Token::Where,
+            "LIMIT" => Token::Limit,
+            "FORMAT" => Token::Format,
+            "JSON" => Token::Json,
             _ => Token::Ident(ident),
         }
     }

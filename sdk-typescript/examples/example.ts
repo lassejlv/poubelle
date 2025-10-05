@@ -4,7 +4,7 @@ const client = new PoubelleClient('poubelle://admin:admin@127.0.0.1:5432')
 
 await client.connect()
 
-const users = await client.query('SELECT * FROM users')
+const users = await client.query('SELECT * FROM users WHERE id = 1 FORMAT JSON')
 console.log(users)
 
 await client.close()

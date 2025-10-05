@@ -1,4 +1,4 @@
-use parser::{Expr, Statement};
+use parser::{CompareOp, Expr, OutputFormat, Statement, WhereClause};
 use std::collections::HashMap;
 use storage::{ColumnType, Row, Storage, StorageError, Value};
 use thiserror::Error;
@@ -16,6 +16,7 @@ pub enum ExecutorError {
 #[derive(Debug)]
 pub enum QueryResult {
     Rows(Vec<Row>),
+    RowsJson(String),
     Success(String),
 }
 
@@ -31,26 +32,59 @@ impl<'a> Executor<'a> {
     pub fn execute(&mut self, stmt: Statement) -> Result<QueryResult, ExecutorError> {
         match stmt {
             Statement::Select(select) => {
-                let rows = self.storage.scan_table(&select.table)?;
+                let mut rows = self.storage.scan_table(&select.table)?;
 
-                if select.columns.contains(&"*".to_string()) {
-                    return Ok(QueryResult::Rows(rows));
+                if let Some(where_clause) = &select.where_clause {
+                    rows = rows
+                        .into_iter()
+                        .filter(|row| self.evaluate_where(row, where_clause))
+                        .collect();
                 }
 
-                let filtered: Vec<Row> = rows
-                    .into_iter()
-                    .map(|row| {
-                        let mut new_row = Row::new();
-                        for col in &select.columns {
-                            if let Some(val) = row.get(col) {
-                                new_row.insert(col.clone(), val.clone());
-                            }
-                        }
-                        new_row
-                    })
-                    .collect();
+                if let Some(limit) = select.limit {
+                    rows.truncate(limit);
+                }
 
-                Ok(QueryResult::Rows(filtered))
+                let result_rows = if select.columns.contains(&"*".to_string()) {
+                    rows
+                } else {
+                    rows.into_iter()
+                        .map(|row| {
+                            let mut new_row = Row::new();
+                            for col in &select.columns {
+                                if let Some(val) = row.get(col) {
+                                    new_row.insert(col.clone(), val.clone());
+                                }
+                            }
+                            new_row
+                        })
+                        .collect()
+                };
+
+                match select.format {
+                    OutputFormat::Json => {
+                        let json_rows: Vec<serde_json::Value> = result_rows
+                            .iter()
+                            .map(|row| {
+                                let mut map = serde_json::Map::new();
+                                for (key, value) in &row.data {
+                                    let json_val = match value {
+                                        Value::Int(i) => serde_json::Value::Number((*i).into()),
+                                        Value::Text(s) => serde_json::Value::String(s.clone()),
+                                        Value::Null => serde_json::Value::Null,
+                                    };
+                                    map.insert(key.clone(), json_val);
+                                }
+                                serde_json::Value::Object(map)
+                            })
+                            .collect();
+
+                        let json_string = serde_json::to_string_pretty(&json_rows)
+                            .unwrap_or_else(|_| "[]".to_string());
+                        Ok(QueryResult::RowsJson(json_string))
+                    }
+                    OutputFormat::Debug => Ok(QueryResult::Rows(result_rows)),
+                }
             }
             Statement::Insert(insert) => {
                 if insert.columns.len() != insert.values.len() {
@@ -99,6 +133,40 @@ impl<'a> Executor<'a> {
                     create.name
                 )))
             }
+        }
+    }
+
+    fn evaluate_where(&self, row: &Row, where_clause: &WhereClause) -> bool {
+        let row_value = match row.get(&where_clause.column) {
+            Some(v) => v,
+            None => return false,
+        };
+
+        let compare_value = match &where_clause.value {
+            Expr::Int(n) => Value::Int(*n),
+            Expr::Text(s) => Value::Text(s.clone()),
+            Expr::Null => Value::Null,
+        };
+
+        match where_clause.operator {
+            CompareOp::Equal => row_value == &compare_value,
+            CompareOp::NotEqual => row_value != &compare_value,
+            CompareOp::LessThan => match (row_value, &compare_value) {
+                (Value::Int(a), Value::Int(b)) => a < b,
+                _ => false,
+            },
+            CompareOp::LessThanOrEqual => match (row_value, &compare_value) {
+                (Value::Int(a), Value::Int(b)) => a <= b,
+                _ => false,
+            },
+            CompareOp::GreaterThan => match (row_value, &compare_value) {
+                (Value::Int(a), Value::Int(b)) => a > b,
+                _ => false,
+            },
+            CompareOp::GreaterThanOrEqual => match (row_value, &compare_value) {
+                (Value::Int(a), Value::Int(b)) => a >= b,
+                _ => false,
+            },
         }
     }
 }

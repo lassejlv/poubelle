@@ -1,4 +1,7 @@
-use crate::ast::{Column, CreateTable, Expr, InsertStatement, SelectQuery, Statement};
+use crate::ast::{
+    Column, CompareOp, CreateTable, Expr, InsertStatement, OutputFormat, SelectQuery, Statement,
+    WhereClause,
+};
 use crate::lexer::{Lexer, Token};
 use thiserror::Error;
 
@@ -77,7 +80,44 @@ impl Parser {
             return Err(ParseError::ExpectedToken("table name".to_string()));
         };
 
-        Ok(Statement::Select(SelectQuery { columns, table }))
+        let where_clause = if self.current == Token::Where {
+            self.advance();
+            Some(self.parse_where()?)
+        } else {
+            None
+        };
+
+        let limit = if self.current == Token::Limit {
+            self.advance();
+            if let Token::Number(n) = self.current {
+                self.advance();
+                Some(n as usize)
+            } else {
+                return Err(ParseError::ExpectedToken("number".to_string()));
+            }
+        } else {
+            None
+        };
+
+        let format = if self.current == Token::Format {
+            self.advance();
+            if self.current == Token::Json {
+                self.advance();
+                OutputFormat::Json
+            } else {
+                return Err(ParseError::ExpectedToken("JSON".to_string()));
+            }
+        } else {
+            OutputFormat::Debug
+        };
+
+        Ok(Statement::Select(SelectQuery {
+            columns,
+            table,
+            where_clause,
+            limit,
+            format,
+        }))
     }
 
     fn parse_insert(&mut self) -> Result<Statement, ParseError> {
@@ -199,5 +239,50 @@ impl Parser {
         self.expect(Token::RightParen)?;
 
         Ok(Statement::Create(CreateTable { name, columns }))
+    }
+
+    fn parse_where(&mut self) -> Result<WhereClause, ParseError> {
+        let column = if let Token::Ident(name) = &self.current {
+            let name = name.clone();
+            self.advance();
+            name
+        } else {
+            return Err(ParseError::ExpectedToken("column name".to_string()));
+        };
+
+        let operator = match &self.current {
+            Token::Equal => CompareOp::Equal,
+            Token::NotEqual => CompareOp::NotEqual,
+            Token::LessThan => CompareOp::LessThan,
+            Token::LessThanOrEqual => CompareOp::LessThanOrEqual,
+            Token::GreaterThan => CompareOp::GreaterThan,
+            Token::GreaterThanOrEqual => CompareOp::GreaterThanOrEqual,
+            _ => return Err(ParseError::ExpectedToken("comparison operator".to_string())),
+        };
+        self.advance();
+
+        let value = match &self.current {
+            Token::Number(n) => {
+                let v = Expr::Int(*n);
+                self.advance();
+                v
+            }
+            Token::String(s) => {
+                let v = Expr::Text(s.clone());
+                self.advance();
+                v
+            }
+            Token::Null => {
+                self.advance();
+                Expr::Null
+            }
+            _ => return Err(ParseError::ExpectedToken("value".to_string())),
+        };
+
+        Ok(WhereClause {
+            column,
+            operator,
+            value,
+        })
     }
 }

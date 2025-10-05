@@ -8,4 +8,5 @@ storage = { path = "../storage" }
 parser = { path = "../parser" }
 anyhow.workspace = true
 thiserror.workspace = true
+serde_json = "1.0"
 

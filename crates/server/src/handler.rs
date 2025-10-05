@@ -46,6 +46,7 @@ pub async fn handle_client(
 fn format_result(result: QueryResult) -> String {
     match result {
         QueryResult::Success(msg) => format!("{}\n", msg),
+        QueryResult::RowsJson(json) => format!("{}\n", json),
         QueryResult::Rows(rows) => {
             if rows.is_empty() {
                 return "No rows\n".to_string();

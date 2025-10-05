@@ -60,6 +60,11 @@ async fn query_handler(
 
     let response = match result {
         QueryResult::Success(msg) => QueryResponse::Success { message: msg },
+        QueryResult::RowsJson(json) => {
+            let parsed: Vec<HashMap<String, JsonValue>> =
+                serde_json::from_str(&json).unwrap_or_default();
+            QueryResponse::Rows { rows: parsed }
+        }
         QueryResult::Rows(rows) => {
             let parsed_rows: Vec<HashMap<String, JsonValue>> = rows
                 .into_iter()
