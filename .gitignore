@@ -2,3 +2,5 @@ target/
 Cargo.lock
 data/
 .env
+sdk-typescript/
+node_modules/

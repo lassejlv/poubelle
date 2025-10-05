@@ -8,7 +8,10 @@ A lightweight SQL database with minimal syntax, written in Rust.
 - **parser**: Minimal SQL syntax parser
 - **engine**: Query execution engine
 - **server**: Combined TCP + HTTP server with username/password authentication
-- **sdk**: Rust client library
+- **sdk**: Client libraries
+  - **Rust**: `crates/sdk`
+  - **TypeScript**: `sdk/typescript` (Bun)
+  - **Go**: `sdk/go`
 
 ## Build
 
@@ -133,10 +136,28 @@ curl -X POST http://localhost:3000/query \
   -d '{"query": "SELECT * FROM users"}'
 ```
 
-### TypeScript SDK
+### Client SDKs
+
+**TypeScript (Bun):**
 
 ```typescript
 import PoubelleClient from 'poubelle-sdk'
 const client = new PoubelleClient('poubelle://admin:admin@localhost:5432')
 await client.connect()
+```
+
+**Go:**
+
+```go
+import poubelle "github.com/poubelle/sdk-go"
+client, _ := poubelle.NewClient("poubelle://admin:admin@localhost:5432")
+client.Connect()
+```
+
+**Rust:**
+
+```rust
+use poubelle_sdk::PoubelleClient;
+let mut client = PoubelleClient::new("poubelle://admin:admin@localhost:5432")?;
+client.connect().await?;
 ```

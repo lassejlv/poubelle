@@ -4,4 +4,4 @@ data/
 .gitignore
 .env
 *.md
-sdk-typescript/
+sdk/
