@@ -1,3 +1,3 @@
-module github.com/poubelle/sdk-go
+module github.com/lassejlv/poubelle/sdk/go
 
 go 1.25.1
