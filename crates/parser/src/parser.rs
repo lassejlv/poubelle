@@ -1,6 +1,6 @@
 use crate::ast::{
-    Column, CompareOp, CreateTable, DropTable, Expr, InsertStatement, OutputFormat, SelectQuery,
-    Statement, WhereClause,
+    ArithmeticOp, Column, CompareOp, CreateTable, DropTable, Expr, InsertStatement, OutputFormat,
+    SelectExprQuery, SelectItem, SelectQuery, Statement, WhereClause,
 };
 use crate::lexer::{Lexer, Token};
 use thiserror::Error;
@@ -51,28 +51,73 @@ impl Parser {
     fn parse_select(&mut self) -> Result<Statement, ParseError> {
         self.expect(Token::Select)?;
 
-        let mut columns = Vec::new();
-        if self.current == Token::Asterisk {
-            columns.push("*".to_string());
-            self.advance();
-        } else {
-            loop {
-                if let Token::Ident(name) = &self.current {
-                    columns.push(name.clone());
-                    self.advance();
-                } else {
-                    return Err(ParseError::ExpectedToken("column name".to_string()));
-                }
+        // Check if this is a simple column SELECT (with FROM) or an expression SELECT
+        // Try parsing as expressions first
+        let mut items = Vec::new();
 
-                if self.current != Token::Comma {
-                    break;
-                }
-                self.advance();
-            }
+        // Handle SELECT *
+        if self.current == Token::Asterisk {
+            self.advance();
+            // This must be a table SELECT
+            self.expect(Token::From)?;
+            return self.parse_table_select(vec!["*".to_string()]);
         }
 
-        self.expect(Token::From)?;
+        // Parse expression list
+        loop {
+            let expr = self.parse_expression()?;
 
+            // Check for alias
+            let alias = if self.current == Token::As {
+                self.advance();
+                if let Token::Ident(name) = &self.current {
+                    let name = name.clone();
+                    self.advance();
+                    Some(name)
+                } else {
+                    return Err(ParseError::ExpectedToken("alias name".to_string()));
+                }
+            } else {
+                None
+            };
+
+            items.push(SelectItem { expr, alias });
+
+            if self.current != Token::Comma {
+                break;
+            }
+            self.advance();
+        }
+
+        // Check if there's a FROM clause
+        if self.current == Token::From {
+            self.advance();
+            // This is a table select - extract column names from expressions
+            let columns: Vec<String> = items
+                .into_iter()
+                .map(|item| match item.expr {
+                    Expr::Column(name) => name,
+                    _ => "?column?".to_string(), // Fallback for complex expressions in table selects
+                })
+                .collect();
+            return self.parse_table_select(columns);
+        }
+
+        // No FROM clause - this is an expression-only SELECT
+        let format = self.parse_output_format()?;
+
+        // Skip optional semicolon
+        if self.current == Token::Semicolon {
+            self.advance();
+        }
+
+        Ok(Statement::SelectExpr(SelectExprQuery {
+            expressions: items,
+            format,
+        }))
+    }
+
+    fn parse_table_select(&mut self, columns: Vec<String>) -> Result<Statement, ParseError> {
         let table = if let Token::Ident(name) = &self.current {
             let name = name.clone();
             self.advance();
@@ -100,17 +145,7 @@ impl Parser {
             None
         };
 
-        let format = if self.current == Token::Format {
-            self.advance();
-            if self.current == Token::Json {
-                self.advance();
-                OutputFormat::Json
-            } else {
-                return Err(ParseError::ExpectedToken("JSON".to_string()));
-            }
-        } else {
-            OutputFormat::Debug
-        };
+        let format = self.parse_output_format()?;
 
         Ok(Statement::Select(SelectQuery {
             columns,
@@ -119,6 +154,101 @@ impl Parser {
             limit,
             format,
         }))
+    }
+
+    fn parse_output_format(&mut self) -> Result<OutputFormat, ParseError> {
+        if self.current == Token::Format {
+            self.advance();
+            if self.current == Token::Json {
+                self.advance();
+                Ok(OutputFormat::Json)
+            } else {
+                Err(ParseError::ExpectedToken("JSON".to_string()))
+            }
+        } else {
+            Ok(OutputFormat::Debug)
+        }
+    }
+
+    /// Parse an expression with operator precedence
+    fn parse_expression(&mut self) -> Result<Expr, ParseError> {
+        self.parse_additive()
+    }
+
+    /// Parse additive expressions (+, -)
+    fn parse_additive(&mut self) -> Result<Expr, ParseError> {
+        let mut left = self.parse_multiplicative()?;
+
+        loop {
+            let op = match &self.current {
+                Token::Plus => ArithmeticOp::Add,
+                Token::Minus => ArithmeticOp::Subtract,
+                _ => break,
+            };
+            self.advance();
+            let right = self.parse_multiplicative()?;
+            left = Expr::BinaryOp {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(left)
+    }
+
+    /// Parse multiplicative expressions (*, /)
+    fn parse_multiplicative(&mut self) -> Result<Expr, ParseError> {
+        let mut left = self.parse_primary()?;
+
+        loop {
+            let op = match &self.current {
+                Token::Asterisk => ArithmeticOp::Multiply,
+                Token::Slash => ArithmeticOp::Divide,
+                _ => break,
+            };
+            self.advance();
+            let right = self.parse_primary()?;
+            left = Expr::BinaryOp {
+                left: Box::new(left),
+                op,
+                right: Box::new(right),
+            };
+        }
+
+        Ok(left)
+    }
+
+    /// Parse primary expressions (literals, identifiers, parenthesized expressions)
+    fn parse_primary(&mut self) -> Result<Expr, ParseError> {
+        match &self.current {
+            Token::Number(n) => {
+                let n = *n;
+                self.advance();
+                Ok(Expr::Int(n))
+            }
+            Token::String(s) => {
+                let s = s.clone();
+                self.advance();
+                Ok(Expr::Text(s))
+            }
+            Token::Null => {
+                self.advance();
+                Ok(Expr::Null)
+            }
+            Token::Ident(name) => {
+                let name = name.clone();
+                self.advance();
+                Ok(Expr::Column(name))
+            }
+            Token::LeftParen => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                self.expect(Token::RightParen)?;
+                Ok(expr)
+            }
+            tok => Err(ParseError::UnexpectedToken(tok.clone())),
+        }
     }
 
     fn parse_insert(&mut self) -> Result<Statement, ParseError> {

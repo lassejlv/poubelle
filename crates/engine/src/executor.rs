@@ -1,4 +1,4 @@
-use parser::{CompareOp, Expr, OutputFormat, Statement, WhereClause};
+use parser::{ArithmeticOp, CompareOp, Expr, OutputFormat, Statement, WhereClause};
 use std::collections::HashMap;
 use storage::{ColumnType, Row, Storage, StorageError, Value};
 use thiserror::Error;
@@ -11,6 +11,10 @@ pub enum ExecutorError {
     TypeMismatch(String),
     #[error("Column count mismatch")]
     ColumnCountMismatch,
+    #[error("Division by zero")]
+    DivisionByZero,
+    #[error("Invalid operation: cannot perform arithmetic on non-integer values")]
+    InvalidArithmetic,
 }
 
 #[derive(Debug)]
@@ -34,6 +38,36 @@ impl<'a> Executor<'a> {
             Statement::Drop(drop) => {
                 self.storage.drop_table(&drop.name)?;
                 Ok(QueryResult::Success(format!("Table {} dropped", drop.name)))
+            }
+            Statement::SelectExpr(select_expr) => {
+                // Evaluate each expression and build a result row
+                let mut row = Row::new();
+                for (i, item) in select_expr.expressions.iter().enumerate() {
+                    let value = self.evaluate_expr(&item.expr, None)?;
+                    let col_name = item
+                        .alias
+                        .clone()
+                        .unwrap_or_else(|| format!("?column{}", i + 1));
+                    row.insert(col_name, value);
+                }
+
+                match select_expr.format {
+                    OutputFormat::Json => {
+                        let mut map = serde_json::Map::new();
+                        for (key, value) in &row.data {
+                            let json_val = match value {
+                                Value::Int(i) => serde_json::Value::Number((*i).into()),
+                                Value::Text(s) => serde_json::Value::String(s.clone()),
+                                Value::Null => serde_json::Value::Null,
+                            };
+                            map.insert(key.clone(), json_val);
+                        }
+                        let json_string = serde_json::to_string_pretty(&[serde_json::Value::Object(map)])
+                            .unwrap_or_else(|_| "[]".to_string());
+                        Ok(QueryResult::RowsJson(json_string))
+                    }
+                    OutputFormat::Debug => Ok(QueryResult::Rows(vec![row])),
+                }
             }
             Statement::Select(select) => {
                 let mut rows = self.storage.scan_table(&select.table)?;
@@ -150,6 +184,7 @@ impl<'a> Executor<'a> {
             Expr::Int(n) => Value::Int(*n),
             Expr::Text(s) => Value::Text(s.clone()),
             Expr::Null => Value::Null,
+            Expr::Column(_) | Expr::BinaryOp { .. } => return false, // Not supported in WHERE yet
         };
 
         match where_clause.operator {
@@ -171,6 +206,50 @@ impl<'a> Executor<'a> {
                 (Value::Int(a), Value::Int(b)) => a >= b,
                 _ => false,
             },
+        }
+    }
+
+    /// Evaluate an expression, optionally with a row context for column references
+    fn evaluate_expr(&self, expr: &Expr, row: Option<&Row>) -> Result<Value, ExecutorError> {
+        match expr {
+            Expr::Int(n) => Ok(Value::Int(*n)),
+            Expr::Text(s) => Ok(Value::Text(s.clone())),
+            Expr::Null => Ok(Value::Null),
+            Expr::Column(name) => {
+                if let Some(row) = row {
+                    row.get(name)
+                        .cloned()
+                        .ok_or_else(|| ExecutorError::TypeMismatch(name.clone()))
+                } else {
+                    // No row context - column reference in expression-only SELECT
+                    Err(ExecutorError::TypeMismatch(format!(
+                        "column '{}' does not exist",
+                        name
+                    )))
+                }
+            }
+            Expr::BinaryOp { left, op, right } => {
+                let left_val = self.evaluate_expr(left, row)?;
+                let right_val = self.evaluate_expr(right, row)?;
+
+                match (left_val, right_val) {
+                    (Value::Int(a), Value::Int(b)) => {
+                        let result = match op {
+                            ArithmeticOp::Add => a + b,
+                            ArithmeticOp::Subtract => a - b,
+                            ArithmeticOp::Multiply => a * b,
+                            ArithmeticOp::Divide => {
+                                if b == 0 {
+                                    return Err(ExecutorError::DivisionByZero);
+                                }
+                                a / b
+                            }
+                        };
+                        Ok(Value::Int(result))
+                    }
+                    _ => Err(ExecutorError::InvalidArithmetic),
+                }
+            }
         }
     }
 }

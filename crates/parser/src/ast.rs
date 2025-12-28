@@ -1,6 +1,7 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum Statement {
     Select(SelectQuery),
+    SelectExpr(SelectExprQuery),
     Insert(InsertStatement),
     Create(CreateTable),
     Drop(DropTable),
@@ -11,6 +12,7 @@ pub struct DropTable {
     pub name: String,
 }
 
+/// A SELECT query that retrieves data from a table
 #[derive(Debug, Clone, PartialEq)]
 pub struct SelectQuery {
     pub columns: Vec<String>,
@@ -18,6 +20,20 @@ pub struct SelectQuery {
     pub where_clause: Option<WhereClause>,
     pub limit: Option<usize>,
     pub format: OutputFormat,
+}
+
+/// A SELECT query that evaluates expressions without a table (like SELECT 1 + 1)
+#[derive(Debug, Clone, PartialEq)]
+pub struct SelectExprQuery {
+    pub expressions: Vec<SelectItem>,
+    pub format: OutputFormat,
+}
+
+/// A single item in a SELECT expression list
+#[derive(Debug, Clone, PartialEq)]
+pub struct SelectItem {
+    pub expr: Expr,
+    pub alias: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -67,4 +83,18 @@ pub enum Expr {
     Int(i64),
     Text(String),
     Null,
+    Column(String),
+    BinaryOp {
+        left: Box<Expr>,
+        op: ArithmeticOp,
+        right: Box<Expr>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArithmeticOp {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
 }

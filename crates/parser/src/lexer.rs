@@ -15,6 +15,7 @@ pub enum Token {
     Limit,
     Format,
     Json,
+    As,
     Ident(String),
     Number(i64),
     String(String),
@@ -28,6 +29,10 @@ pub enum Token {
     LessThanOrEqual,
     GreaterThan,
     GreaterThanOrEqual,
+    Plus,
+    Minus,
+    Slash,
+    Semicolon,
     Eof,
 }
 
@@ -70,6 +75,18 @@ impl Lexer {
                 self.pos += 1;
                 Token::RightParen
             }
+            '+' => {
+                self.pos += 1;
+                Token::Plus
+            }
+            '/' => {
+                self.pos += 1;
+                Token::Slash
+            }
+            ';' => {
+                self.pos += 1;
+                Token::Semicolon
+            }
             '=' => {
                 self.pos += 1;
                 Token::Equal
@@ -102,7 +119,16 @@ impl Lexer {
                 }
             }
             '\'' => self.read_string(),
-            '0'..='9' | '-' => self.read_number(),
+            '-' => {
+                // Check if it's a negative number or minus operator
+                if self.pos + 1 < self.input.len() && self.input[self.pos + 1].is_numeric() {
+                    self.read_number()
+                } else {
+                    self.pos += 1;
+                    Token::Minus
+                }
+            }
+            '0'..='9' => self.read_number(),
             _ if ch.is_alphabetic() => self.read_identifier(),
             _ => {
                 self.pos += 1;
@@ -142,6 +168,7 @@ impl Lexer {
             "FORMAT" => Token::Format,
             "JSON" => Token::Json,
             "DROP" => Token::Drop,
+            "AS" => Token::As,
             _ => Token::Ident(ident),
         }
     }
