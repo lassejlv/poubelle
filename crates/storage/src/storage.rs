@@ -232,4 +232,82 @@ impl Storage {
 
         Ok(())
     }
+
+    /// Get the storage directory path
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    /// Flush all cached data to disk
+    pub fn flush(&self) -> Result<(), StorageError> {
+        self.save_catalog()
+    }
+}
+
+// S3 backup integration methods
+#[cfg(feature = "s3-backup")]
+impl Storage {
+    /// Create a backup of this storage to S3
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use storage::{Storage, S3BackupConfig};
+    ///
+    /// let storage = Storage::open("./data".into())?;
+    /// let config = S3BackupConfig::new("my-bucket", "backups/");
+    /// let manifest = storage.backup_to_s3(config).await?;
+    /// println!("Backup created: {}", manifest.id);
+    /// ```
+    pub async fn backup_to_s3(
+        &self,
+        config: crate::backup::S3BackupConfig,
+    ) -> Result<crate::backup::BackupManifest, crate::backup::BackupError> {
+        // Ensure all data is flushed to disk before backup
+        self.save_catalog()?;
+
+        let backup = crate::backup::S3Backup::new(config).await?;
+        backup.backup_storage(&self.path).await
+    }
+
+    /// Restore from an S3 backup to a new storage location
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use storage::{Storage, S3BackupConfig};
+    ///
+    /// let config = S3BackupConfig::new("my-bucket", "backups/");
+    /// let storage = Storage::restore_from_s3(
+    ///     config,
+    ///     "backup-20240101-120000",
+    ///     "./restored-data".into()
+    /// ).await?;
+    /// ```
+    pub async fn restore_from_s3(
+        config: crate::backup::S3BackupConfig,
+        backup_id: &str,
+        restore_path: PathBuf,
+    ) -> Result<Self, crate::backup::BackupError> {
+        let backup = crate::backup::S3Backup::new(config).await?;
+        backup.restore_storage(backup_id, &restore_path).await?;
+        Ok(Self::open(restore_path)?)
+    }
+
+    /// List all available S3 backups
+    pub async fn list_s3_backups(
+        config: crate::backup::S3BackupConfig,
+    ) -> Result<Vec<crate::backup::BackupManifest>, crate::backup::BackupError> {
+        let backup = crate::backup::S3Backup::new(config).await?;
+        backup.list_backups().await
+    }
+
+    /// Delete an S3 backup
+    pub async fn delete_s3_backup(
+        config: crate::backup::S3BackupConfig,
+        backup_id: &str,
+    ) -> Result<(), crate::backup::BackupError> {
+        let backup = crate::backup::S3Backup::new(config).await?;
+        backup.delete_backup(backup_id).await
+    }
 }
